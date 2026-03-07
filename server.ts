@@ -88,6 +88,37 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // Bulk Animals
+  app.post("/api/animals/bulk", (req, res) => {
+    const animals = req.body;
+    const insertAnimal = db.prepare(`
+      INSERT INTO animals (id, raca, cor, dataEntradaAnimal, quantidade)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const insertWeight = db.prepare(`
+      INSERT INTO weights (id, animalId, pesoEntrada, dataEntradaPeso, precoEntrada)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const transaction = db.transaction((data) => {
+      for (const item of data) {
+        insertAnimal.run(item.id, item.raca, item.cor, item.dataEntradaAnimal, item.quantidade);
+        if (item.pesoInicial) {
+          const weightId = `w-${item.id}`;
+          insertWeight.run(weightId, item.id, item.pesoInicial, item.dataEntradaAnimal, 0);
+        }
+      }
+    });
+
+    try {
+      transaction(animals);
+      res.status(201).json({ success: true, count: animals.length });
+    } catch (error) {
+      console.error("Bulk animal import error:", error);
+      res.status(500).json({ error: "Failed to import animals" });
+    }
+  });
+
   // Weights
   app.get("/api/weights", (req, res) => {
     const weights = db.prepare("SELECT * FROM weights").all();
@@ -176,6 +207,29 @@ async function startServer() {
     const { id } = req.params;
     db.prepare("DELETE FROM vaccines WHERE id = ?").run(id);
     res.json({ success: true });
+  });
+
+  // Bulk Vaccines
+  app.post("/api/vaccines/bulk", (req, res) => {
+    const vaccines = req.body;
+    const stmt = db.prepare(`
+      INSERT INTO vaccines (id, animalId, nomeVacina, dataAplicacao, dataVencimento)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const transaction = db.transaction((data) => {
+      for (const item of data) {
+        stmt.run(item.id, item.animalId, item.nomeVacina, item.dataAplicacao, item.dataVencimento);
+      }
+    });
+
+    try {
+      transaction(vaccines);
+      res.status(201).json({ success: true, count: vaccines.length });
+    } catch (error) {
+      console.error("Bulk vaccine import error:", error);
+      res.status(500).json({ error: "Failed to import vaccines" });
+    }
   });
 
   // --- VITE MIDDLEWARE ---

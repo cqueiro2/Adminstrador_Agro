@@ -22,6 +22,7 @@ import { AnimalForm, WeightControlForm, VaccinationForm } from './components/das
 import { ControlChart } from './components/dashboard/ControlChart';
 import { GestaoAgro } from './components/dashboard/GestaoAgro';
 import { Administradores } from './components/dashboard/Administradores';
+import { CSVImport } from './components/dashboard/CSVImport';
 import { estimateFinalWeight } from './services/geminiService';
 import { Alert } from './components/ui/Alert';
 import { AlertProps } from './components/ui/Alert';
@@ -463,6 +464,69 @@ const App: React.FC = () => {
       }
     }
   };
+
+  const handleImportBovines = async (data: any[]) => {
+    try {
+      const mappedAnimals = data.map(item => ({
+        id: item.brinco || crypto.randomUUID(),
+        raca: item.raca || 'N/A',
+        cor: item.cor || 'N/A',
+        dataEntradaAnimal: item.data_entrada || new Date().toISOString().split('T')[0],
+        quantidade: parseInt(item.quantidade) || 1,
+        pesoInicial: parseFloat(item.peso_inicial) || 0
+      }));
+
+      const response = await fetch('/api/animals/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mappedAnimals)
+      });
+
+      if (response.ok) {
+        const animalsRes = await fetch('/api/animals');
+        const weightsRes = await fetch('/api/weights');
+        if (animalsRes.ok && weightsRes.ok) {
+          setAnimals(await animalsRes.json());
+          setWeightControls(await weightsRes.json());
+        }
+        setNotification({ message: `${mappedAnimals.length} bovinos importados com sucesso!`, type: 'success' });
+      } else {
+        throw new Error('Falha na importação');
+      }
+    } catch (error) {
+      setNotification({ message: 'Erro ao importar bovinos via CSV.', type: 'error' });
+    }
+  };
+
+  const handleImportVaccines = async (data: any[]) => {
+    try {
+      const mappedVaccines = data.map(item => ({
+        id: crypto.randomUUID(),
+        animalId: item.brinco_animal,
+        nomeVacina: item.vacina,
+        dataAplicacao: item.data_aplicacao,
+        dataVencimento: item.data_vencimento || null
+      }));
+
+      const response = await fetch('/api/vaccines/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mappedVaccines)
+      });
+
+      if (response.ok) {
+        const vaccinesRes = await fetch('/api/vaccines');
+        if (vaccinesRes.ok) {
+          setVaccinations(await vaccinesRes.json());
+        }
+        setNotification({ message: `${mappedVaccines.length} vacinas importadas com sucesso!`, type: 'success' });
+      } else {
+        throw new Error('Falha na importação');
+      }
+    } catch (error) {
+      setNotification({ message: 'Erro ao importar vacinas via CSV.', type: 'error' });
+    }
+  };
   
   const handleGenerateExcelReport = (targetAnimalId?: string) => {
     const reportAnimalsData = targetAnimalId ? animals.filter(a => a.id === targetAnimalId) : animals;
@@ -758,6 +822,11 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto space-y-8">
             {activeTab === 'dashboard' && (
               <>
+                <CSVImport 
+                  onImportBovines={handleImportBovines} 
+                  onImportVaccines={handleImportVaccines} 
+                />
+                
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
                   {stats.map((stat, i) => (
