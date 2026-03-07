@@ -1,0 +1,6 @@
+{
+  "name": "Animal Control Dashboard",
+  "description": "A web application to manage animal characteristics, weight, vaccinations, and value, with a dashboard for visualization and weight gain estimation using Gemini API.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
