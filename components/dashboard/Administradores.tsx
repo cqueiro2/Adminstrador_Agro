@@ -1,270 +1,243 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../ui/Card';
-import { UserPlus, Shield, Mail, Edit2, Save, X } from 'lucide-react';
+import { Shield, UserCheck, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Modal } from '../ui/Modal';
 
-type Admin = {
+type UserRole = 'admin' | 'gerente' | 'operador';
+
+type SystemUser = {
   id: number;
   name: string;
-  role: string;
-  email: string;
-  avatar: string;
-  active: boolean;
+  login: string;
+  role: UserRole;
 };
 
-type AccessSettings = {
-  twoFactorRequired: boolean;
-  allowInviteByEmail: boolean;
-  auditLogEnabled: boolean;
+type FarmAccessSettings = {
+  activeFarmName: string;
+  activeAdminLogin: string;
+  farmByAdminLogin: Record<string, string>;
 };
 
-const DEFAULT_ADMINS: Admin[] = [
-  { id: 1, name: 'João Silva', role: 'Administrador Master', email: 'joao@fazenda.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', active: true },
-  { id: 2, name: 'Maria Santos', role: 'Gerente de Campo', email: 'maria@fazenda.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Molly', active: true },
+const USERS_STORAGE_KEY = 'agro-system-users';
+const FARM_SETTINGS_STORAGE_KEY = 'agro-farm-admin-settings';
+const CURRENT_LOGIN_STORAGE_KEY = 'agro-current-login';
+
+const DEFAULT_USERS: SystemUser[] = [
+  { id: 1, name: 'João Silva', login: 'joao@fazenda.com', role: 'admin' },
+  { id: 2, name: 'Maria Santos', login: 'maria@fazenda.com', role: 'gerente' },
+  { id: 3, name: 'Pedro Lima', login: 'pedro@fazenda.com', role: 'operador' },
 ];
 
-const DEFAULT_SETTINGS: AccessSettings = {
-  twoFactorRequired: true,
-  allowInviteByEmail: true,
-  auditLogEnabled: true,
+const DEFAULT_SETTINGS: FarmAccessSettings = {
+  activeFarmName: 'Fazenda Santa Aurora',
+  activeAdminLogin: 'joao@fazenda.com',
+  farmByAdminLogin: {
+    'joao@fazenda.com': 'Fazenda Santa Aurora',
+  },
 };
 
-const ADMIN_STORAGE_KEY = 'agro-admins';
-const ADMIN_SETTINGS_STORAGE_KEY = 'agro-admin-settings';
-
 export const Administradores: React.FC = () => {
-  const [admins, setAdmins] = useState<Admin[]>(DEFAULT_ADMINS);
-  const [settings, setSettings] = useState<AccessSettings>(DEFAULT_SETTINGS);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
-  const [formData, setFormData] = useState<Omit<Admin, 'id' | 'avatar'>>({
-    name: '',
-    role: '',
-    email: '',
-    active: true,
-  });
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [users, setUsers] = useState<SystemUser[]>(DEFAULT_USERS);
+  const [settings, setSettings] = useState<FarmAccessSettings>(DEFAULT_SETTINGS);
+
+  const [farmNameInput, setFarmNameInput] = useState(DEFAULT_SETTINGS.activeFarmName);
+  const [selectedLogin, setSelectedLogin] = useState(DEFAULT_SETTINGS.activeAdminLogin);
+  const [confirmMessage, setConfirmMessage] = useState<string | null>(null);
+
+  const [currentLogin, setCurrentLogin] = useState(DEFAULT_USERS[0].login);
 
   useEffect(() => {
-    const storedAdmins = localStorage.getItem(ADMIN_STORAGE_KEY);
-    if (storedAdmins) {
+    const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+    if (storedUsers) {
       try {
-        setAdmins(JSON.parse(storedAdmins));
+        setUsers(JSON.parse(storedUsers));
       } catch {
-        setAdmins(DEFAULT_ADMINS);
+        setUsers(DEFAULT_USERS);
       }
     }
 
-    const storedSettings = localStorage.getItem(ADMIN_SETTINGS_STORAGE_KEY);
+    const storedSettings = localStorage.getItem(FARM_SETTINGS_STORAGE_KEY);
     if (storedSettings) {
       try {
-        setSettings(JSON.parse(storedSettings));
+        const parsed = JSON.parse(storedSettings) as FarmAccessSettings;
+        setSettings(parsed);
+        setFarmNameInput(parsed.activeFarmName);
+        setSelectedLogin(parsed.activeAdminLogin);
       } catch {
         setSettings(DEFAULT_SETTINGS);
       }
     }
+
+    const storedCurrentLogin = localStorage.getItem(CURRENT_LOGIN_STORAGE_KEY);
+    if (storedCurrentLogin) {
+      setCurrentLogin(storedCurrentLogin);
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admins));
-  }, [admins]);
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+  }, [users]);
 
   useEffect(() => {
-    localStorage.setItem(ADMIN_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(FARM_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
   useEffect(() => {
-    if (!feedbackMessage) return;
-    const timer = setTimeout(() => setFeedbackMessage(null), 2500);
+    localStorage.setItem(CURRENT_LOGIN_STORAGE_KEY, currentLogin);
+  }, [currentLogin]);
+
+  useEffect(() => {
+    if (!confirmMessage) return;
+    const timer = setTimeout(() => setConfirmMessage(null), 3000);
     return () => clearTimeout(timer);
-  }, [feedbackMessage]);
+  }, [confirmMessage]);
 
-  const activeAdmins = useMemo(() => admins.filter((admin) => admin.active).length, [admins]);
+  const currentUser = useMemo(
+    () => users.find((user) => user.login === currentLogin) ?? users[0],
+    [users, currentLogin]
+  );
 
-  const openCreateModal = () => {
-    setEditingAdmin(null);
-    setFormData({ name: '', role: '', email: '', active: true });
-    setIsModalOpen(true);
-  };
+  const activeAdmin = useMemo(
+    () => users.find((user) => user.login === settings.activeAdminLogin),
+    [users, settings.activeAdminLogin]
+  );
 
-  const openEditModal = (admin: Admin) => {
-    setEditingAdmin(admin);
-    setFormData({
-      name: admin.name,
-      role: admin.role,
-      email: admin.email,
-      active: admin.active,
-    });
-    setIsModalOpen(true);
-  };
+  const canManageSettings = currentUser?.role === 'admin';
 
-  const handleSaveAdmin = () => {
-    if (!formData.name.trim() || !formData.role.trim() || !formData.email.trim()) {
-      setFeedbackMessage('Preencha nome, perfil e e-mail para salvar.');
+  const handleConfirmChanges = () => {
+    if (!canManageSettings) {
+      setConfirmMessage('Acesso negado: apenas administradores podem alterar essas configurações.');
       return;
     }
 
-    if (editingAdmin) {
-      setAdmins((prev) =>
-        prev.map((admin) =>
-          admin.id === editingAdmin.id
-            ? { ...admin, ...formData, name: formData.name.trim(), role: formData.role.trim(), email: formData.email.trim() }
-            : admin
-        )
-      );
-      setFeedbackMessage('Administrador atualizado com sucesso.');
-    } else {
-      const newAdmin: Admin = {
-        id: Date.now(),
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name.trim() || 'User')}`,
-        name: formData.name.trim(),
-        role: formData.role.trim(),
-        email: formData.email.trim(),
-        active: formData.active,
-      };
-      setAdmins((prev) => [newAdmin, ...prev]);
-      setFeedbackMessage('Novo administrador cadastrado.');
+    const normalizedFarmName = farmNameInput.trim();
+    if (!normalizedFarmName) {
+      setConfirmMessage('Informe o nome da fazenda para continuar.');
+      return;
     }
 
-    setIsModalOpen(false);
-  };
+    setSettings((prev) => ({
+      ...prev,
+      activeFarmName: normalizedFarmName,
+      activeAdminLogin: selectedLogin,
+      farmByAdminLogin: {
+        ...prev.farmByAdminLogin,
+        [selectedLogin]: normalizedFarmName,
+      },
+    }));
 
-  const updateSetting = (key: keyof AccessSettings, value: boolean) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-    setFeedbackMessage('Configuração de acesso atualizada.');
+    const selectedUser = users.find((user) => user.login === selectedLogin);
+    setConfirmMessage(
+      `Configuração atualizada: ${selectedUser?.name ?? selectedLogin} agora é o administrador da fazenda ${normalizedFarmName}.`
+    );
   };
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-end">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-2xl font-bold text-slate-800">Administradores</h2>
-          <p className="text-slate-500">Gerencie os usuários com acesso ao sistema.</p>
-        </div>
-        <Button className="bg-brand hover:bg-orange-600" onClick={openCreateModal}>
-          <UserPlus size={18} className="mr-2" />
-          Novo Administrador
-        </Button>
+      <div className="flex flex-col gap-2">
+        <h2 className="text-2xl font-bold text-slate-800">Administradores</h2>
+        <p className="text-slate-500">Defina qual login administrador é responsável pela fazenda ativa.</p>
       </div>
 
-      {feedbackMessage && (
-        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-          {feedbackMessage}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {admins.map((admin) => (
-          <Card key={admin.id}>
-            <div className="flex items-center gap-4">
-              <img src={admin.avatar} alt={admin.name} className="w-16 h-16 rounded-2xl border-2 border-slate-50 shadow-sm" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-slate-900">{admin.name}</h3>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${admin.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {admin.active ? 'Ativo' : 'Inativo'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400 text-sm mt-1">
-                  <Shield size={14} />
-                  <span>{admin.role}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400 text-sm">
-                  <Mail size={14} />
-                  <span>{admin.email}</span>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-brand" onClick={() => openEditModal(admin)}>
-                <Edit2 size={14} className="mr-1" />
-                Editar
-              </Button>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      <Card title="Permissões de Acesso">
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <Card title="Configuração de Responsável pela Fazenda">
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-bold text-slate-400 uppercase">Total de administradores</p>
-              <p className="text-2xl font-bold text-slate-900 mt-2">{admins.length}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase">Usuário logado</p>
+              <p className="mt-2 text-sm font-semibold text-slate-800">{currentUser?.name}</p>
+              <p className="text-xs text-slate-500">{currentUser?.login} · {currentUser?.role.toUpperCase()}</p>
             </div>
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-bold text-slate-400 uppercase">Administradores ativos</p>
-              <p className="text-2xl font-bold text-emerald-600 mt-2">{activeAdmins}</p>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-bold text-slate-400 uppercase">Convites por e-mail</p>
-              <p className="text-2xl font-bold text-slate-900 mt-2">{settings.allowInviteByEmail ? 'Habilitado' : 'Desabilitado'}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase">Status de permissão</p>
+              <p className={`mt-2 text-sm font-semibold ${canManageSettings ? 'text-emerald-600' : 'text-red-500'}`}>
+                {canManageSettings ? 'Permitido alterar configurações' : 'Sem permissão para alterar'}
+              </p>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <button onClick={() => updateSetting('twoFactorRequired', !settings.twoFactorRequired)} className="w-full flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 hover:bg-slate-50 transition-colors">
-              <span className="text-sm font-semibold text-slate-700">Exigir autenticação em dois fatores</span>
-              <span className={`text-xs font-bold uppercase ${settings.twoFactorRequired ? 'text-emerald-600' : 'text-slate-400'}`}>{settings.twoFactorRequired ? 'Ativo' : 'Inativo'}</span>
-            </button>
-            <button onClick={() => updateSetting('allowInviteByEmail', !settings.allowInviteByEmail)} className="w-full flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 hover:bg-slate-50 transition-colors">
-              <span className="text-sm font-semibold text-slate-700">Permitir convite de novos usuários por e-mail</span>
-              <span className={`text-xs font-bold uppercase ${settings.allowInviteByEmail ? 'text-emerald-600' : 'text-slate-400'}`}>{settings.allowInviteByEmail ? 'Ativo' : 'Inativo'}</span>
-            </button>
-            <button onClick={() => updateSetting('auditLogEnabled', !settings.auditLogEnabled)} className="w-full flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 hover:bg-slate-50 transition-colors">
-              <span className="text-sm font-semibold text-slate-700">Habilitar trilha de auditoria</span>
-              <span className={`text-xs font-bold uppercase ${settings.auditLogEnabled ? 'text-emerald-600' : 'text-slate-400'}`}>{settings.auditLogEnabled ? 'Ativo' : 'Inativo'}</span>
-            </button>
+          {!canManageSettings && (
+            <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-red-700">
+              <AlertTriangle size={18} className="mt-0.5" />
+              <p className="text-sm font-medium">Apenas usuários com perfil <strong>admin</strong> podem acessar e alterar as configurações de fazenda e responsável.</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Nome da Fazenda"
+              value={farmNameInput}
+              onChange={(event) => setFarmNameInput(event.target.value)}
+              placeholder="Ex: Fazenda Boa Esperança"
+              disabled={!canManageSettings}
+            />
+
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                Login responsável
+              </label>
+              <select
+                value={selectedLogin}
+                onChange={(event) => setSelectedLogin(event.target.value)}
+                disabled={!canManageSettings}
+                className="block w-full px-4 py-3 bg-slate-50 border-0 rounded-xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-brand/20 focus:bg-white transition-all duration-200 disabled:opacity-60"
+              >
+                {users.map((user) => (
+                  <option key={user.id} value={user.login}>
+                    {user.login} ({user.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handleConfirmChanges} disabled={!canManageSettings}>
+              <UserCheck size={16} className="mr-2" />
+              Confirmar responsável
+            </Button>
+          </div>
+
+          {confirmMessage && (
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              {confirmMessage}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card title="Resumo Atual">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-slate-100 bg-white p-4">
+            <p className="text-xs font-bold text-slate-400 uppercase">Administrador ativo</p>
+            <p className="mt-2 text-lg font-bold text-slate-800">{activeAdmin?.name ?? 'Não definido'}</p>
+            <p className="text-sm text-slate-500">{settings.activeAdminLogin}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-100 bg-white p-4">
+            <p className="text-xs font-bold text-slate-400 uppercase">Fazenda ativa</p>
+            <p className="mt-2 text-lg font-bold text-slate-800">{settings.activeFarmName}</p>
+            <p className="text-sm text-slate-500">Associada ao administrador selecionado</p>
           </div>
         </div>
       </Card>
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingAdmin ? 'Editar Administrador' : 'Novo Administrador'}
-        footer={(
-          <>
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
-              <X size={16} className="mr-1" /> Cancelar
-            </Button>
-            <Button onClick={handleSaveAdmin}>
-              <Save size={16} className="mr-1" /> Salvar
-            </Button>
-          </>
-        )}
-      >
-        <div className="space-y-4">
-          <Input
-            label="Nome"
-            value={formData.name}
-            onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-            placeholder="Nome do administrador"
-          />
-          <Input
-            label="Perfil"
-            value={formData.role}
-            onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
-            placeholder="Ex: Gerente de Operações"
-          />
-          <Input
-            label="E-mail"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-            placeholder="usuario@fazenda.com"
-          />
-          <label className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3">
-            <span className="text-sm font-semibold text-slate-700">Administrador ativo</span>
-            <input
-              type="checkbox"
-              checked={formData.active}
-              onChange={(e) => setFormData((prev) => ({ ...prev, active: e.target.checked }))}
-              className="h-4 w-4"
-            />
-          </label>
+      <Card title="Logins cadastrados no sistema">
+        <div className="space-y-3">
+          {users.map((user) => (
+            <div key={user.id} className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">{user.name}</p>
+                <p className="text-xs text-slate-500">{user.login}</p>
+              </div>
+              <span className={`text-xs font-bold uppercase px-2 py-1 rounded-full ${user.role === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500'}`}>
+                <Shield size={12} className="inline mr-1" />
+                {user.role}
+              </span>
+            </div>
+          ))}
         </div>
-      </Modal>
+      </Card>
     </div>
   );
 };
