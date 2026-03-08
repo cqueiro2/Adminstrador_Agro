@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx'; // Import xlsx library
 import jsPDF from 'jspdf';
@@ -165,6 +165,7 @@ const App: React.FC = () => {
 
   const [showEstimacaoTabelaModal, setShowEstimacaoTabelaModal] = useState(false);
   const [selectedTipoCriacaoIdPerControl, setSelectedTipoCriacaoIdPerControl] = useState<Record<string, string>>({});
+  const [globalSearch, setGlobalSearch] = useState('');
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
@@ -723,9 +724,23 @@ const App: React.FC = () => {
   };
 
 
+  const normalizedSearch = globalSearch.trim().toLowerCase();
+
+  const filteredAnimals = useMemo(() => {
+    if (!normalizedSearch) return animals;
+    return animals.filter((animal) => {
+      const searchSource = `${animal.raca} ${animal.cor} ${animal.id}`.toLowerCase();
+      return searchSource.includes(normalizedSearch);
+    });
+  }, [animals, normalizedSearch]);
+
   const selectedAnimalDetails = animals.find(a => a.id === selectedAnimalId);
   const animalWeightControls = weightControls.filter(wc => wc.animalId === selectedAnimalId);
   const animalVaccinations = vaccinations.filter(v => v.animalId === selectedAnimalId);
+  const vaccinationsInAlert = useMemo(
+    () => vaccinations.filter(v => getVaccinationStatus(v) !== 'ok'),
+    [vaccinations]
+  );
   const selectedControlForChart = weightControls.find(wc => wc.id === selectedWeightControlId);
 
   const chartData: ControlChartData | null = selectedControlForChart ? {
@@ -751,7 +766,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const totalAnimals = animals.reduce((acc, curr) => acc + curr.quantidade, 0);
-  const animalsInTreatment = vaccinations.filter(v => getVaccinationStatus(v) !== 'ok').length;
+  const animalsInTreatment = vaccinationsInAlert.length;
   
   const stats = [
     { label: 'Total Bovinos', value: totalAnimals.toLocaleString(), icon: Users, color: 'text-orange-500', bg: 'bg-orange-50', trend: '+2.4%' },
@@ -815,7 +830,9 @@ const App: React.FC = () => {
             activeTab === 'administradores' ? "Administradores" :
             activeTab.charAt(0).toUpperCase() + activeTab.slice(1)
           } 
-          onMenuClick={() => setIsSidebarOpen(true)} 
+          onMenuClick={() => setIsSidebarOpen(true)}
+          searchValue={globalSearch}
+          onSearchChange={setGlobalSearch}
         />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-8">
@@ -876,7 +893,7 @@ const App: React.FC = () => {
                       actions={<Button variant="ghost" size="sm" className="text-brand border-none shadow-none hover:bg-orange-50">Ver todos</Button>}
                     >
                       <div className="space-y-4">
-                        {vaccinations.filter(v => getVaccinationStatus(v) !== 'ok').slice(0, 3).map((vac, i) => (
+                        {vaccinationsInAlert.slice(0, 3).map((vac, i) => (
                           <div key={vac.id} className="flex items-center gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100/50">
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${getVaccinationStatus(vac) === 'vencida' ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-500'}`}>
                               <AlertCircle size={20} />
@@ -888,7 +905,7 @@ const App: React.FC = () => {
                             <span className="text-[10px] font-bold text-slate-400 uppercase">Há {i + 2} horas</span>
                           </div>
                         ))}
-                        {vaccinations.filter(v => getVaccinationStatus(v) !== 'ok').length === 0 && (
+                        {vaccinationsInAlert.length === 0 && (
                           <div className="text-center py-8 text-slate-400">
                             <CheckCircle2 size={32} className="mx-auto mb-2 text-emerald-500 opacity-50" />
                             <p className="text-sm font-medium">Nenhum alerta pendente</p>
@@ -906,7 +923,7 @@ const App: React.FC = () => {
                       actions={<Button onClick={() => { setEditingAnimal(null); setShowAnimalModal(true);}} size="sm" className="bg-brand hover:bg-orange-600"><Plus size={16} /></Button>}
                     >
                       <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                        {animals.map(animal => (
+                        {filteredAnimals.map(animal => (
                           <motion.div
                             key={animal.id}
                             layoutId={animal.id}
@@ -942,6 +959,12 @@ const App: React.FC = () => {
                             </div>
                           </motion.div>
                         ))}
+                        {filteredAnimals.length === 0 && (
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                            <p className="text-sm font-semibold text-slate-500">Nenhum animal encontrado</p>
+                            <p className="mt-1 text-xs text-slate-400">Refine a busca usando raça, cor ou código do lote.</p>
+                          </div>
+                        )}
                       </div>
                     </Card>
 
