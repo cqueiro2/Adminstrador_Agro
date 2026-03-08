@@ -5,9 +5,11 @@ import { Search, Bell, MessageSquare, Menu } from 'lucide-react';
 interface HeaderProps {
   title: string;
   onMenuClick?: () => void;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, onMenuClick }) => {
+export const Header: React.FC<HeaderProps> = ({ title, onMenuClick, searchValue = '', onSearchChange }) => {
   return (
     <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-6 sticky top-0 z-30">
       <div className="flex items-center gap-4">
@@ -28,6 +30,8 @@ export const Header: React.FC<HeaderProps> = ({ title, onMenuClick }) => {
           <input 
             type="text" 
             placeholder="Buscar animal, lote ou alerta..." 
+            value={searchValue}
+            onChange={(e) => onSearchChange?.(e.target.value)}
             className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-brand/20 transition-all outline-none"
           />
         </div>
