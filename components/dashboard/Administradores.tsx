@@ -323,8 +323,9 @@ export const Administradores: React.FC = () => {
             />
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Administrador responsável (login)</label>
+              <label htmlFor="new-farm-admin-login" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Administrador responsável (login)</label>
               <select
+                id="new-farm-admin-login"
                 value={newFarmAdminLogin}
                 onChange={(event) => setNewFarmAdminLogin(event.target.value)}
                 disabled={!canManageSettings}
@@ -364,8 +365,9 @@ export const Administradores: React.FC = () => {
             />
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Perfil</label>
+              <label htmlFor="new-admin-role" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Perfil</label>
               <select
+                id="new-admin-role"
                 value={newAdminRole}
                 onChange={(event) => setNewAdminRole(event.target.value as UserRole)}
                 disabled={!canManageSettings}
@@ -391,8 +393,9 @@ export const Administradores: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Fazenda</label>
+              <label htmlFor="selected-farm" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Fazenda</label>
               <select
+                id="selected-farm"
                 value={selectedFarmId}
                 onChange={(event) => setSelectedFarmId(Number(event.target.value))}
                 disabled={!canManageSettings}
@@ -413,8 +416,9 @@ export const Administradores: React.FC = () => {
             />
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Login responsável</label>
+              <label htmlFor="selected-responsible-login" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Login responsável</label>
               <select
+                id="selected-responsible-login"
                 value={selectedResponsibleLogin}
                 onChange={(event) => setSelectedResponsibleLogin(event.target.value)}
                 disabled={!canManageSettings}
